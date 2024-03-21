@@ -22,27 +22,15 @@
 #pragma once
 
 #define FC_TARGET_MCU     STM32G47X
-// my real mcu
-//#define FC_TARGET_MCU     STM32G431CBU6
 
-// from example
-//#define BOARD_NAME        HYBRIDG4
-//#define MANUFACTURER_ID   NERC
-#define BOARD_NAME        WEACTSTUDIO
-#define MANUFACTURER_ID   STMI
-#define USE_ACC
-#define USE_GYRO
-#define USE_GYRO_SPI_MPU9250
-#define USE_ACC_SPI_MPU9250
+#define BOARD_NAME        HYBRIDG4
+#define MANUFACTURER_ID   NERC
 
-
-
-
-// #define BEEPER_PIN           PC14  //звуковой излучатель (пищалка) для издания звуковых сигналов.
-#define MOTOR1_PIN           PC6 //
-#define MOTOR2_PIN           PA4 //
-#define MOTOR3_PIN           PB0 //
-#define MOTOR4_PIN           PB1 //
+#define BEEPER_PIN           PC14
+#define MOTOR1_PIN           PB0
+#define MOTOR2_PIN           PB1
+#define MOTOR3_PIN           PB2
+#define MOTOR4_PIN           PB3
 #define RX_PPM_PIN           PA2
 #define LED_STRIP_PIN        PA8
 #define UART1_TX_PIN         PA9
@@ -101,31 +89,3 @@
 #define USE_ACCGYRO_BMI270
 #define GYRO_1_SPI_INSTANCE SPI1
 #define GYRO_1_ALIGN_YAW 2700
-
-// RECOURCES
-
-resource SPI_SCK 1 A5
-resource SPI_SCK 2 B13
-resource SPI_MISO 1 A6
-resource SPI_MISO 2 B14
-resource SPI_MOSI 1 A7
-resource SPI_MOSI 2 B15
-
-resource I2C_SCL 1 A15
-resource I2C_SDA 1 B7
-
-resource SERIAL_RX 1 A10
-resource SERIAL_TX 1 A9
-
-
-#timer
-timer PC6 AF2
-#  TIM3 CH1 (AF2)
-timer PA4 AF2
-# TIM3 CH2 (AF2)
-timer PB0 AF2
-# TIM3 CH3 (AF2)
-timer PB1 AF2
-# TIM3 CH4 (AF2)
-
-
