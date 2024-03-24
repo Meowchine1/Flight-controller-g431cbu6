@@ -30,6 +30,7 @@
 /* USER CODE BEGIN Includes */
 #include"MPU9250.h"
 #include "usbd_cdc_if.h"
+#include <inttypes.h>
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -55,6 +56,35 @@
 uint8_t serialBuf[100];
 MPU9250_t MPU9250;
 
+volatile uint32_t period = 0, pulseWidth = 0;
+
+
+////////////////////////////////////////////////////////////////////////////////////////////
+//number of ppm channels
+//in future, add functionality to change number of channels with button/encoder or simply read
+//channel length with STOP pulse, to be calculated in future, 30.5ms is for 12 channels
+#define SIGNAL_LENGTH	30500
+//max channels  to be calculated in future
+#define MAX_PPM_CHANNELS (4)
+//pulse lenght before timeout microsec, used to find STOP or to find tht the signal is busted
+#define MAX_PULSE_WAIT_TIMEOUT_USEC (2500)
+
+//ppm min and max will be used for checking PPM abnormalities and to round to nearest if the signal is lower/higher then we want
+//#define PPM_MIN (950)
+//#define PPM_MAX (2050)
+
+//every channel init to 0
+int PPM_CHANNEL_TIME[MAX_PPM_CHANNELS] = { 0 };
+// indicates the system is just booted up
+int is_first_start = 1;
+// indicates that the first channel pulse is found
+int is_in_sync = 0;
+//edge which triggers value update/printf on every second edge(falling or rising)
+int edge=1;
+//current channel
+int current_channel = 0 ;
+////////////////////////////////////////////////////////////////////////////////////////////
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -65,6 +95,19 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
+{
+    if (htim->Instance == TIM4)
+    {
+        if(htim->Channel == HAL_TIM_ACTIVE_CHANNEL_1)
+        {
+            TIM4->CNT = 0;
+            period = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_1);
+            pulseWidth = HAL_TIM_ReadCapturedValue(&htim4, TIM_CHANNEL_2);
+
+        }
+    }
+}
 
 /* USER CODE END 0 */
 
@@ -76,7 +119,7 @@ int main(void)
 {
   /* USER CODE BEGIN 1 */
 
-	 MPU9250.settings.gFullScaleRange = GFSR_500DPS;
+	  MPU9250.settings.gFullScaleRange = GFSR_500DPS;
 	  MPU9250.settings.aFullScaleRange = AFSR_4G;
 	  MPU9250.settings.CS_PIN = GPIO_PIN_4;
 	  MPU9250.settings.CS_PORT = GPIOC;
@@ -109,7 +152,13 @@ int main(void)
   MX_USART1_UART_Init();
   MX_USB_Device_Init();
   MX_TIM3_Init();
+  MX_TIM4_Init();
   /* USER CODE BEGIN 2 */
+
+  // Timer for PPM signal
+  HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_1); // direct channel
+  HAL_TIM_IC_Start_IT(&htim4, TIM_CHANNEL_2); //indirect channel
+
 
   // Check if IMU configured properly and block if it didn't
    if (MPU_begin(&hspi1, &MPU9250) != TRUE)
@@ -119,16 +168,10 @@ int main(void)
      while (1){}
    }
 
-
    // Calibrate the IMU
     sprintf((char *)serialBuf, "CALIBRATING...\r\n");
     CDC_Transmit_FS(serialBuf, sizeof(serialBuf));
     MPU_calibrateGyro(&hspi1, &MPU9250, 1500);
-
-//    // Start timer and put processor into an efficient low power mode
-//    HAL_TIM_Base_Start_IT(&htim11);
-//    HAL_PWR_EnableSleepOnExit();
-//    HAL_PWR_EnterSLEEPMode(PWR_MAINREGULATOR_ON, PWR_SLEEPENTRY_WFI);
 
   /* USER CODE END 2 */
 
@@ -138,17 +181,23 @@ int main(void)
 
   while (1)
   {
-	  //	  MPU_readRawData(&hspi1, &MPU9250);
-	 //	  sprintf((char *)serialBuf, "RAW DAT\n\rAccel: x=%d y=%d z=%d\n\rGyro: x=%d y=%d z=%d\n\r", MPU9250.rawData.ax,  MPU9250.rawData.ay, MPU9250.rawData.az
-	 //			  , MPU9250.rawData.gx, MPU9250.rawData.gy, MPU9250.rawData.gz);
-	 //	  CDC_Transmit_FS(serialBuf, sizeof(serialBuf));
-	 //
-	 //	  MPU_readProcessedData(&hspi1, &MPU9250);
-	 //	  sprintf((char *)serialBuf, "PROCSSED DAT\n\rA: x=%f y=%f z=%f\n\rGyro: x=%f y=%f z=%f\n\n\r", MPU9250.sensorData.ax,  MPU9250.sensorData.ay, MPU9250.sensorData.az
-	 //	  			  , MPU9250.sensorData.gx, MPU9250.sensorData.gy, MPU9250.sensorData.gz);
-	 //	  CDC_Transmit_FS(serialBuf, sizeof(serialBuf));
-	 //
-	 //	  HAL_Delay(5000);
+	  // Serial out MPU9250 data
+	 	  MPU_readRawData(&hspi1, &MPU9250);
+	 	  sprintf((char *)serialBuf, "RAW DATA\n\rAccel: x=%d y=%d z=%d\n\rGyro: x=%d y=%d z=%d\n\r", MPU9250.rawData.ax,  MPU9250.rawData.ay, MPU9250.rawData.az
+	 			  , MPU9250.rawData.gx, MPU9250.rawData.gy, MPU9250.rawData.gz);
+	 	  CDC_Transmit_FS(serialBuf, sizeof(serialBuf));
+
+	 	  MPU_readProcessedData(&hspi1, &MPU9250);
+	 	  sprintf((char *)serialBuf, "PROCSSED DATA\n\rA: x=%f y=%f z=%f\n\rGyro: x=%f y=%f z=%f\n\n\r", MPU9250.sensorData.ax,  MPU9250.sensorData.ay, MPU9250.sensorData.az
+	 	  			  , MPU9250.sensorData.gx, MPU9250.sensorData.gy, MPU9250.sensorData.gz);
+	 	  CDC_Transmit_FS(serialBuf, sizeof(serialBuf));
+
+          sprintf((char *)serialBuf, "Period = %u \t PulseWidth = %u \n", (uint16_t)period, (uint16_t)pulseWidth);
+          CDC_Transmit_FS(serialBuf, sizeof(serialBuf));
+
+	 	  HAL_Delay(5000);
+
+
 
 	  MPU_calcAttitude(&hspi1, &MPU9250);
 
@@ -207,6 +256,7 @@ void SystemClock_Config(void)
 }
 
 /* USER CODE BEGIN 4 */
+
 
 /* USER CODE END 4 */
 
